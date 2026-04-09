@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  mta-yoklama:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mta-yoklama-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # Veritabanının silinmemesi için 'data' klasörü persist ediliyor
+      - ./data:/app/data
+    environment:
+      # Bunları kendi istediğin varsayılan değerlerle değiştirebilirsin
+      - ADMIN_IDENTITY_NO=100000001
+      - ADMIN_PASSWORD=Admin123!
+      - ADMIN_FULL_NAME=Atolye Yoneticisi
