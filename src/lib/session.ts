@@ -22,7 +22,7 @@ export async function createSession(userId: string) {
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: false,
     path: "/",
     expires: new Date(expiresAt),
   });

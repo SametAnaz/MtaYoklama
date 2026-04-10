@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mta-yoklama:
     build:
@@ -12,8 +10,13 @@ services:
     volumes:
       # Veritabanının silinmemesi için 'data' klasörü persist ediliyor
       - ./data:/app/data
+    extra_hosts:
+      # Docker container'ından host (Pi) üzerindeki servislere erişim
+      - "host.docker.internal:host-gateway"
     environment:
-      # Bunları kendi istediğin varsayılan değerlerle değiştirebilirsin
+      # Admin kullanıcı bilgileri (ilk kurulumda kullanılır)
       - ADMIN_IDENTITY_NO=100000001
       - ADMIN_PASSWORD=Admin123!
       - ADMIN_FULL_NAME=Atolye Yoneticisi
+      # RFID Python API adresi — Pi'de 8001 portunda çalışıyor
+      - RFID_API_URL=http://host.docker.internal:8001

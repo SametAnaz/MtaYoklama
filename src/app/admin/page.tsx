@@ -154,6 +154,7 @@ export default async function AdminPage({
           <Link href="/admin/reports" style={{ display: "inline-flex", alignItems: "center", padding: "0.5rem 0.875rem", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", color: "var(--ink)" }}>Raporlar</Link>
           <Link href="/admin/sessions" style={{ display: "inline-flex", alignItems: "center", padding: "0.5rem 0.875rem", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", color: "var(--ink)" }}>Oturumlar</Link>
           <Link href="/admin/audit" style={{ display: "inline-flex", alignItems: "center", padding: "0.5rem 0.875rem", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", color: "var(--ink)" }}>Denetim</Link>
+          <Link href="/admin/rfid" style={{ display: "inline-flex", alignItems: "center", padding: "0.5rem 0.875rem", border: "1.5px solid var(--border)", borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", color: "var(--ink)" }}>RFID Kartlar</Link>
           <form action={logout}>
             <button type="submit" className="ghost sm">Çıkış Yap</button>
           </form>
