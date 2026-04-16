@@ -6,20 +6,25 @@ import bcrypt from "bcryptjs";
 
 export type AppRole = "admin" | "staff";
 
-const dataDir = path.join(process.cwd(), "data");
-const dbFile = path.join(dataDir, "mta-yoklama.db");
+const dataDir = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
+const dbFile = process.env.DATABASE_PATH ?? path.join(dataDir, "mta-yoklama.db");
+const isBuildTime = process.env.NEXT_PHASE === "phase-production-build";
 
-if (!existsSync(dataDir)) {
-  mkdirSync(dataDir, { recursive: true });
+if (!isBuildTime) {
+  const dbFolder = path.dirname(dbFile);
+  if (!existsSync(dbFolder)) {
+    mkdirSync(dbFolder, { recursive: true });
+  }
 }
 
-const db = new Database(dbFile, { timeout: 8000 });
+const db = isBuildTime ? new Database(":memory:") : new Database(dbFile, { timeout: 8000 });
 
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
+if (!isBuildTime) {
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
 
-/* ─── Core tables ─── */
-db.exec(`
+  /* ─── Core tables ─── */
+  db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     identity_no TEXT UNIQUE NOT NULL,
@@ -65,6 +70,7 @@ db.exec(`
     shift_id INTEGER,
     check_in_at TEXT NOT NULL,
     check_out_at TEXT,
+    scheduled_end_at TEXT,
     source TEXT NOT NULL DEFAULT 'web',
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY(shift_id) REFERENCES shifts(id) ON DELETE SET NULL
@@ -116,28 +122,65 @@ db.exec(`
     ON login_attempts(identity_no, attempted_at);
 `);
 
-/* ─── Migrations for existing DBs ─── */
-function addColumnIfMissing(table: string, column: string, definition: string) {
-  try {
-    const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
-    if (!cols.some((c) => c.name === column)) {
-      db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
+  /* ─── Migrations for existing DBs ─── */
+  function addColumnIfMissing(table: string, column: string, definition: string) {
+    try {
+      const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === column)) {
+        db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
+      }
+    } catch {
+      // already exists
     }
-  } catch {
-    // already exists
+  }
+
+  addColumnIfMissing("users", "is_active", "INTEGER NOT NULL DEFAULT 1");
+  addColumnIfMissing("attendance_logs", "scheduled_end_at", "TEXT");
+
+  /* ─── Seed admin ─── */
+  const adminIdentity = process.env.ADMIN_IDENTITY_NO ?? "100000001";
+  const adminPassword = process.env.ADMIN_PASSWORD ?? "Admin123!";
+  const adminName = process.env.ADMIN_FULL_NAME ?? "Atolye Yoneticisi";
+
+  db.prepare(
+    "INSERT OR IGNORE INTO users (id, identity_no, full_name, role, password_hash, is_active) VALUES (?, ?, ?, 'admin', ?, 1)",
+  ).run(randomUUID(), adminIdentity, adminName, bcrypt.hashSync(adminPassword, 10));
+
+  type ExpiredAttendanceRow = {
+    id: number;
+    scheduled_end_at: string | null;
+  };
+
+  function closeExpiredAttendanceLogs() {
+    const now = Date.now();
+    const rows = db
+      .prepare(
+        "SELECT id, scheduled_end_at FROM attendance_logs WHERE check_out_at IS NULL AND scheduled_end_at IS NOT NULL",
+      )
+      .all() as ExpiredAttendanceRow[];
+
+    for (const row of rows) {
+      const endAt = row.scheduled_end_at ? new Date(row.scheduled_end_at).getTime() : NaN;
+      if (Number.isFinite(endAt) && endAt <= now) {
+        db.prepare("UPDATE attendance_logs SET check_out_at = ? WHERE id = ?").run(
+          new Date(endAt).toISOString(),
+          row.id,
+        );
+      }
+    }
+  }
+
+  closeExpiredAttendanceLogs();
+
+  const globalDb = globalThis as typeof globalThis & {
+    __attendanceSweeper?: ReturnType<typeof setInterval>;
+  };
+
+  if (!globalDb.__attendanceSweeper) {
+    globalDb.__attendanceSweeper = setInterval(closeExpiredAttendanceLogs, 60_000);
+    globalDb.__attendanceSweeper.unref?.();
   }
 }
-
-addColumnIfMissing("users", "is_active", "INTEGER NOT NULL DEFAULT 1");
-
-/* ─── Seed admin ─── */
-const adminIdentity = process.env.ADMIN_IDENTITY_NO ?? "100000001";
-const adminPassword = process.env.ADMIN_PASSWORD ?? "Admin123!";
-const adminName = process.env.ADMIN_FULL_NAME ?? "Atolye Yoneticisi";
-
-db.prepare(
-  "INSERT OR IGNORE INTO users (id, identity_no, full_name, role, password_hash, is_active) VALUES (?, ?, ?, 'admin', ?, 1)",
-).run(randomUUID(), adminIdentity, adminName, bcrypt.hashSync(adminPassword, 10));
 
 /* ─── Types ─── */
 export type UserRow = {

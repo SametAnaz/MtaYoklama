@@ -4,6 +4,13 @@ import { db, type SessionRow } from "@/lib/db";
 
 export const SESSION_COOKIE = "mta_session";
 
+function shouldUseSecureCookie() {
+  // Allow overriding for LAN/http deployments behind systemd.
+  if (process.env.SESSION_COOKIE_SECURE === "true") return true;
+  if (process.env.SESSION_COOKIE_SECURE === "false") return false;
+  return process.env.NODE_ENV === "production";
+}
+
 export function tokenExpiresIn(hours = 12) {
   return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
 }
@@ -22,7 +29,7 @@ export async function createSession(userId: string) {
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: false,
+    secure: shouldUseSecureCookie(),
     path: "/",
     expires: new Date(expiresAt),
   });

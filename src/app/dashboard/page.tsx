@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AttendancePanel } from "@/app/dashboard/_components/attendance-panel";
 import { ChangePasswordForm } from "@/components/change-password-form";
+import { getCardByTc, type CardRecord } from "@/app/admin/rfid/_actions/rfid-actions";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -71,6 +72,8 @@ export default async function DashboardPage() {
     )
     .all(user.id) as AttendanceRow[];
 
+  const currentCard = await getCardByTc(user.identity_no);
+
   const dayNames = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 
   return (
@@ -137,6 +140,9 @@ export default async function DashboardPage() {
             <AttendancePanel
               hasOpenLog={Boolean(openLog)}
               todaySchedule={todaySchedule ?? null}
+              currentCard={currentCard as CardRecord | null}
+              fullName={user.full_name}
+              identityNo={user.identity_no}
             />
           </div>
         </section>
